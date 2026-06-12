@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./firebase.js";
 import {
-  doc, getDoc, setDoc, collection, onSnapshot, serverTimestamp
+  doc, getDoc, setDoc, collection, onSnapshot, serverTimestamp,
+  getDocs
 } from "firebase/firestore";
 
 // ─── DADOS OFICIAIS ──────────────────────────────────────────────────────────
@@ -138,9 +139,11 @@ function nameToId(name) {
 
 export default function App() {
   const [screen, setScreen] = useState("loading");
-  const [currentId, setCurrentId] = useState(null);  // Firestore doc ID (normalized name)
+  const [currentId, setCurrentId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [nameInput, setNameInput] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [participants, setParticipants] = useState({});
   const [adminResults, setAdminResults] = useState({ brazil:{}, groups:{}, knockout:{}, knockoutUnlocked:false, guessesLocked:false, guessesVisible:false });
   const [adminCode, setAdminCode] = useState("");
@@ -182,25 +185,42 @@ export default function App() {
     return () => unsubRef.current?.();
   }, []);
 
-  // ── Enter by name: load existing profile or create new one
+  // ── Enter by name + PIN
   async function handleRegister() {
     const name = nameInput.trim(); if (!name) return;
-    const id = nameToId(name);
-    const snap = await getDoc(doc(db, "participants", id));
-    if (snap.exists()) {
-      // Profile exists — log in
-      setCurrentId(id);
-      setCurrentUser(snap.data());
-      localStorage.setItem("bolao_user_id", id);
+    const pin = pinInput.trim(); if (!pin) { setLoginError("Digite seu PIN"); return; }
+    setLoginError("");
+
+    // Fetch all participants and find by name (client-side, avoids index requirement)
+    const snap = await getDocs(collection(db, "participants"));
+    let found = null;
+    snap.forEach(d => {
+      const data = d.data();
+      // Case-insensitive name match
+      if (data.name && data.name.trim().toLowerCase() === name.toLowerCase()) {
+        found = { docId: d.id, data };
+      }
+    });
+
+    if (found) {
+      // Validate PIN
+      if (String(found.data.pin) !== String(pin)) {
+        setLoginError("PIN incorreto. Tente novamente.");
+        return;
+      }
+      setCurrentId(found.docId);
+      setCurrentUser(found.data);
+      localStorage.setItem("bolao_user_id", found.docId);
       setScreen("home");
     } else {
-      // New profile
-      if (adminResults.guessesLocked) return; // don't allow new registrations when locked
-      const data = { id, name, brazil:{}, groups:{}, knockout:{}, createdAt:serverTimestamp() };
-      await setDoc(doc(db, "participants", id), data);
-      setCurrentId(id);
+      // New participant
+      if (adminResults.guessesLocked) { setLoginError("Palpites encerrados, não é possível criar novo acesso."); return; }
+      const newId = name.toLowerCase().replace(/\s+/g,"_") + "_" + Date.now();
+      const data = { id:newId, name, pin:String(pin), brazil:{}, groups:{}, knockout:{}, createdAt:serverTimestamp() };
+      await setDoc(doc(db,"participants",newId), data);
+      setCurrentId(newId);
       setCurrentUser(data);
-      localStorage.setItem("bolao_user_id", id);
+      localStorage.setItem("bolao_user_id", newId);
       setScreen("home");
     }
   }
@@ -234,7 +254,10 @@ export default function App() {
 
   if (screen==="register") return (
     <RegisterScreen nameInput={nameInput} setNameInput={setNameInput}
-      onRegister={handleRegister} locked={adminResults.guessesLocked} />
+      pinInput={pinInput} setPinInput={setPinInput}
+      loginError={loginError}
+      onRegister={handleRegister} locked={adminResults.guessesLocked}
+      sorted={sorted} getTotal={p=>calcTotal(p,adminResults)} />
   );
 
   if (screen==="home") return (
@@ -299,10 +322,10 @@ export default function App() {
 }
 
 // ─── REGISTER ────────────────────────────────────────────────────────────────
-function RegisterScreen({ nameInput, setNameInput, onRegister, locked }) {
+function RegisterScreen({ nameInput, setNameInput, pinInput, setPinInput, loginError, onRegister, locked, sorted, getTotal }) {
   return (
-    <div style={{ maxWidth:400,margin:"0 auto",padding:"3rem 1rem" }}>
-      <div style={{ textAlign:"center",marginBottom:"2rem" }}>
+    <div style={{ maxWidth:400,margin:"0 auto",padding:"2rem 1rem" }}>
+      <div style={{ textAlign:"center",marginBottom:"1.5rem" }}>
         <div style={{ fontSize:52,marginBottom:8 }}>🏆</div>
         <div style={{ display:"inline-flex",alignItems:"center",gap:6,marginBottom:6 }}>
           <span style={{ fontSize:22 }}>🇧🇷</span>
@@ -313,35 +336,60 @@ function RegisterScreen({ nameInput, setNameInput, onRegister, locked }) {
           VENCERÁS OU MAMARÁS?
         </div>
       </div>
-      {locked ? (
-        <div style={{ background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:"1.5rem" }}>
-          <p style={{ margin:"0 0 16px",fontWeight:500,fontSize:16 }}>Entrar no bolão</p>
-          <p style={{ margin:"0 0 16px",fontSize:13,color:"var(--color-text-secondary)" }}>
-            Palpites encerrados para novos participantes. Se já se cadastrou, digite seu nome para acessar seus palpites.
+
+      {/* Login form */}
+      <div style={{ background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:"1.5rem",marginBottom:"1rem" }}>
+        <p style={{ margin:"0 0 16px",fontWeight:500,fontSize:16 }}>
+          {locked ? "Acessar meus palpites 👁️" : "Bem-vindo! 👋"}
+        </p>
+
+        <label style={{ fontSize:12,color:"var(--color-text-secondary)",display:"block",marginBottom:4 }}>Seu nome</label>
+        <input type="text" placeholder="Ex: Thiago" value={nameInput}
+          onChange={e=>setNameInput(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&onRegister()}
+          style={{ width:"100%",marginBottom:12,fontSize:15 }} autoFocus />
+
+        <label style={{ fontSize:12,color:"var(--color-text-secondary)",display:"block",marginBottom:4 }}>PIN</label>
+        <input type="number" placeholder="PIN de acesso"
+          value={pinInput} onChange={e=>setPinInput(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&onRegister()}
+          style={{ width:"100%",marginBottom:loginError?8:16,fontSize:15,letterSpacing:"0.15em" }} />
+
+        {loginError && (
+          <p style={{ margin:"0 0 12px",fontSize:13,color:"var(--color-text-danger)",fontWeight:500 }}>
+            ⚠️ {loginError}
           </p>
-          <input type="text" placeholder="Seu nome" value={nameInput}
-            onChange={e=>setNameInput(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&onRegister()}
-            style={{ width:"100%",marginBottom:12,fontSize:16 }} autoFocus />
-          <button onClick={onRegister} style={{ width:"100%",fontWeight:500,padding:"10px" }}
-            disabled={!nameInput.trim()}>
-            Acessar meus palpites <i className="ti ti-arrow-right" />
-          </button>
-        </div>
-      ) : (
-        <div style={{ background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:"1.5rem" }}>
-          <p style={{ margin:"0 0 4px",fontWeight:500,fontSize:16 }}>Bem-vindo! 👋</p>
-          <p style={{ margin:"0 0 16px",fontSize:13,color:"var(--color-text-secondary)" }}>
-            Digite seu nome para entrar. Se já se cadastrou antes, use o mesmo nome para recuperar seus palpites.
-          </p>
-          <input type="text" placeholder="Seu nome" value={nameInput}
-            onChange={e=>setNameInput(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&onRegister()}
-            style={{ width:"100%",marginBottom:12,fontSize:16 }} autoFocus />
-          <button onClick={onRegister} style={{ width:"100%",fontWeight:500,padding:"10px" }}
-            disabled={!nameInput.trim()}>
-            Entrar no bolão <i className="ti ti-arrow-right" />
-          </button>
+        )}
+
+        <button onClick={onRegister} style={{ width:"100%",fontWeight:500,padding:"10px" }}
+          disabled={!nameInput.trim()||!pinInput.trim()}>
+          {locked ? "Acessar" : "Entrar no bolão"} <i className="ti ti-arrow-right" />
+        </button>
+
+        <p style={{ margin:"12px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center" }}>
+          O PIN foi enviado pelo administrador do bolão
+        </p>
+      </div>
+
+      {/* Ranking preview */}
+      {sorted && sorted.length > 0 && (
+        <div style={{ background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:"1.25rem" }}>
+          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 }}>
+            <span style={{ fontSize:14,fontWeight:500 }}>Placar ao vivo 🔴</span>
+            <span style={{ fontSize:12,color:"var(--color-text-tertiary)" }}>{sorted.length} participantes</span>
+          </div>
+          {sorted.slice(0,6).map((p,i)=>(
+            <div key={p.uid||p.id||i} style={{ display:"flex",alignItems:"center",gap:10,padding:"5px 0",borderTop:i>0?"0.5px solid var(--color-border-tertiary)":"none" }}>
+              <span style={{ fontSize:i<3?16:13,width:24,textAlign:"center" }}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}</span>
+              <span style={{ flex:1,fontSize:14 }}>{p.name}</span>
+              <span style={{ fontSize:14,fontWeight:500 }}>{getTotal(p)} pts</span>
+            </div>
+          ))}
+          {sorted.length>6 && (
+            <p style={{ margin:"8px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center" }}>
+              +{sorted.length-6} participantes
+            </p>
+          )}
         </div>
       )}
     </div>
