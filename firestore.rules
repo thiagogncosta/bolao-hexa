@@ -1,20 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Each participant can only read/write their own document
-    match /participants/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+    match /participants/{docId} {
+      allow read: if true;
+      allow write: if true;
     }
-
-    // Admin results: anyone can read, nobody can write from the client
-    // (writes happen via the admin panel which uses the same auth — 
-    //  we allow write for any authenticated user since there's no server;
-    //  the admin password protects the UI)
     match /admin/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if true;
+      allow write: if true;
     }
   }
 }

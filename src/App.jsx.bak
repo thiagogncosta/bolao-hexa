@@ -306,11 +306,11 @@ function RegisterScreen({ nameInput, setNameInput, onRegister, locked }) {
         <div style={{ fontSize:52,marginBottom:8 }}>🏆</div>
         <div style={{ display:"inline-flex",alignItems:"center",gap:6,marginBottom:6 }}>
           <span style={{ fontSize:22 }}>🇧🇷</span>
-          <h1 style={{ margin:0,fontSize:24,fontWeight:500 }}>Bolão do Hexa</h1>
+          <h1 style={{ margin:0,fontSize:24,fontWeight:500 }}>Bolão Copa 2026</h1>
           <span style={{ fontSize:22 }}>🇧🇷</span>
         </div>
         <div style={{ display:"inline-block",background:"#009c3b",color:"#fff",borderRadius:"var(--border-radius-md)",padding:"3px 14px",fontSize:13,fontWeight:500,letterSpacing:"0.04em" }}>
-          VENCERÁS OU MAMARÁS?
+          FAMÍLIA LINDA
         </div>
       </div>
       {locked ? (
@@ -357,12 +357,12 @@ function HomeScreen({ currentUser, sorted, getTotal, adminResults, onGuesses, on
         <div style={{ fontSize:44,marginBottom:6 }}>🏆</div>
         <div style={{ display:"inline-flex",alignItems:"center",gap:6,marginBottom:6 }}>
           <span style={{ fontSize:22 }}>🇧🇷</span>
-          <h1 style={{ margin:0,fontSize:24,fontWeight:500 }}>Bolão do Hexa</h1>
+          <h1 style={{ margin:0,fontSize:24,fontWeight:500 }}>Bolão Copa 2026</h1>
           <span style={{ fontSize:22 }}>🇧🇷</span>
         </div>
         <br/>
         <div style={{ display:"inline-block",background:"#009c3b",color:"#fff",borderRadius:"var(--border-radius-md)",padding:"3px 14px",fontSize:13,fontWeight:500,letterSpacing:"0.04em",marginBottom:6 }}>
-          VENCERÁS OU MAMARÁS?
+          FAMÍLIA LINDA
         </div>
         <p style={{ margin:0,fontSize:12,color:"var(--color-text-secondary)" }}>EUA · México · Canadá · 11 Jun – 19 Jul</p>
       </div>
@@ -1112,7 +1112,7 @@ function RulesScreen({ onBack }) {
           <i className="ti ti-arrow-left" style={{ fontSize:20,color:"var(--color-text-secondary)" }}/>
         </button>
         <div>
-          <p style={{ margin:0,fontSize:12,color:"var(--color-text-secondary)" }}>Bolão do Hexa</p>
+          <p style={{ margin:0,fontSize:12,color:"var(--color-text-secondary)" }}>Bolão Família Linda</p>
           <h2 style={{ margin:0,fontSize:18 }}>Regras de pontuação</h2>
         </div>
       </div>
