@@ -486,7 +486,7 @@ function GuessesScreen({ user, adminResults, locked, readOnly, onSave, saveStatu
 
   function handleSave() {
     if (isReadOnly) return;
-    onSave({ ...user, ...local });
+    onSave(local);
   }
 
   function updBrazil(gId, val) {
