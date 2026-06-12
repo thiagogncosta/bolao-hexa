@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { db } from "./firebase.js";
+import { db, ensureAuth } from "./firebase.js";
 import {
   doc, getDoc, setDoc, collection, onSnapshot, serverTimestamp,
   getDocs
@@ -152,22 +152,25 @@ export default function App() {
   const unsubRef = useRef(null);
 
   useEffect(() => {
-    // Check if name is stored locally from a previous session on this device
-    const savedId = localStorage.getItem("bolao_user_id");
-    if (savedId) {
-      getDoc(doc(db, "participants", savedId)).then(snap => {
-        if (snap.exists()) {
-          setCurrentId(savedId);
-          setCurrentUser(snap.data());
-          setScreen("home");
-        } else {
-          localStorage.removeItem("bolao_user_id");
-          setScreen("register");
-        }
-      });
-    } else {
-      setScreen("register");
-    }
+    // Sign in anonymously first — required for Firestore rules
+    ensureAuth().then(() => {
+      // Check if name is stored locally from a previous session on this device
+      const savedId = localStorage.getItem("bolao_user_id");
+      if (savedId) {
+        getDoc(doc(db, "participants", savedId)).then(snap => {
+          if (snap.exists()) {
+            setCurrentId(savedId);
+            setCurrentUser(snap.data());
+            setScreen("home");
+          } else {
+            localStorage.removeItem("bolao_user_id");
+            setScreen("register");
+          }
+        });
+      } else {
+        setScreen("register");
+      }
+    }).catch(() => setScreen("register"));
 
     // Subscribe to admin results (live)
     const unsubAdmin = onSnapshot(doc(db, "admin", "results"), snap => {
