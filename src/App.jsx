@@ -228,10 +228,14 @@ export default function App() {
   // ── Save participant guesses
   async function saveGuesses(updated) {
     setSaveStatus("saving");
-    // Only save guess fields — never overwrite name/pin/id/createdAt
-    const { brazil, groups, knockout } = updated;
-    await setDoc(doc(db, "participants", currentId), { brazil, groups, knockout }, { merge:true });
-    setCurrentUser({ ...currentUser, brazil, groups, knockout });
+    // Explicitly build the payload — only brazil/groups/knockout, nothing else
+    const payload = {
+      brazil: updated.brazil || {},
+      groups: updated.groups || {},
+      knockout: updated.knockout || {},
+    };
+    await setDoc(doc(db, "participants", currentId), payload, { merge:true });
+    setCurrentUser(prev => ({ ...prev, ...payload }));
     setSaveStatus("saved");
     setTimeout(()=>setSaveStatus(""),2000);
   }
@@ -476,11 +480,20 @@ function HomeScreen({ currentUser, sorted, getTotal, adminResults, onGuesses, on
 // ─── GUESSES SCREEN ───────────────────────────────────────────────────────────
 function GuessesScreen({ user, adminResults, locked, readOnly, onSave, saveStatus, onBack }) {
   const [tab, setTab] = useState("brasil");
-  const [local, setLocal] = useState(() => ({
-    brazil: user?.brazil || {},
-    groups: user?.groups || {},
-    knockout: user?.knockout || {},
-  }));
+  const [local, setLocal] = useState(() => {
+    // Explicitly pick only valid guess fields — never carry over id/name/pin/etc
+    const brazil = user?.brazil || {};
+    const groups = {};
+    const srcGroups = user?.groups || {};
+    // Only copy valid group IDs (A-L), skip any non-group fields like 'id'
+    GROUPS.forEach(g => { if (srcGroups[g.id]) groups[g.id] = srcGroups[g.id]; });
+    const knockout = {};
+    const srcKO = user?.knockout || {};
+    // Only copy valid KO round IDs, skip name/pin/etc
+    KO_ROUNDS.forEach(r => { if (srcKO[r.id]) knockout[r.id] = srcKO[r.id]; });
+    if (srcKO.r32entrants) knockout.r32entrants = srcKO.r32entrants;
+    return { brazil, groups, knockout };
+  });
 
   const isReadOnly = locked || readOnly;
 
