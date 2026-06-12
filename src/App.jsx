@@ -228,8 +228,10 @@ export default function App() {
   // ── Save participant guesses
   async function saveGuesses(updated) {
     setSaveStatus("saving");
-    await setDoc(doc(db, "participants", currentId), updated, { merge:true });
-    setCurrentUser(updated);
+    // Only save guess fields — never overwrite name/pin/id/createdAt
+    const { brazil, groups, knockout } = updated;
+    await setDoc(doc(db, "participants", currentId), { brazil, groups, knockout }, { merge:true });
+    setCurrentUser({ ...currentUser, brazil, groups, knockout });
     setSaveStatus("saved");
     setTimeout(()=>setSaveStatus(""),2000);
   }
