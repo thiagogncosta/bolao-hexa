@@ -373,7 +373,7 @@ function RegisterScreen({ nameInput, setNameInput, pinInput, setPinInput, loginE
         </button>
 
         <p style={{ margin:"12px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center" }}>
-          O PIN foi enviado pelo administrador do bolão <span style={{ opacity:0.4 }}>· v8</span>
+          O PIN foi enviado pelo administrador do bolão <span style={{ opacity:0.4 }}>· build-FIX</span>
         </p>
       </div>
 
