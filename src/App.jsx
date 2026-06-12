@@ -228,14 +228,20 @@ export default function App() {
   // ── Save participant guesses
   async function saveGuesses(updated) {
     setSaveStatus("saving");
-    // Explicitly build the payload — only brazil/groups/knockout, nothing else
-    const payload = {
+    // Rebuild the ENTIRE document cleanly from currentUser identity + new guesses
+    // This avoids any merge with corrupted/stale nested data
+    const cleanDoc = {
+      id: currentUser?.id || currentId,
+      name: currentUser?.name || "",
+      pin: currentUser?.pin != null ? String(currentUser.pin) : "",
+      createdAt: currentUser?.createdAt || serverTimestamp(),
       brazil: updated.brazil || {},
       groups: updated.groups || {},
       knockout: updated.knockout || {},
     };
-    await setDoc(doc(db, "participants", currentId), payload, { merge:true });
-    setCurrentUser(prev => ({ ...prev, ...payload }));
+    // setDoc WITHOUT merge — completely overwrites, guaranteeing clean structure
+    await setDoc(doc(db, "participants", currentId), cleanDoc);
+    setCurrentUser(cleanDoc);
     setSaveStatus("saved");
     setTimeout(()=>setSaveStatus(""),2000);
   }
@@ -367,7 +373,7 @@ function RegisterScreen({ nameInput, setNameInput, pinInput, setPinInput, loginE
         </button>
 
         <p style={{ margin:"12px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center" }}>
-          O PIN foi enviado pelo administrador do bolão
+          O PIN foi enviado pelo administrador do bolão <span style={{ opacity:0.4 }}>· v8</span>
         </p>
       </div>
 
