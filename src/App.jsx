@@ -152,9 +152,19 @@ export default function App() {
   const unsubRef = useRef(null);
 
   useEffect(() => {
-    // Sign in anonymously first — required for Firestore rules
+    // Start subscriptions immediately — reads are public
+    const unsubAdmin = onSnapshot(doc(db, "admin", "results"), snap => {
+      if (snap.exists()) setAdminResults(snap.data());
+    });
+    const unsubParts = onSnapshot(collection(db, "participants"), snap => {
+      const data = {};
+      snap.forEach(d => { data[d.id] = d.data(); });
+      setParticipants(data);
+    });
+    unsubRef.current = () => { unsubAdmin(); unsubParts(); };
+
+    // Auth + session restore in background
     ensureAuth().then(() => {
-      // Check if name is stored locally from a previous session on this device
       const savedId = localStorage.getItem("bolao_user_id");
       if (savedId) {
         getDoc(doc(db, "participants", savedId)).then(snap => {
@@ -172,19 +182,6 @@ export default function App() {
       }
     }).catch(() => setScreen("register"));
 
-    // Subscribe to admin results (live)
-    const unsubAdmin = onSnapshot(doc(db, "admin", "results"), snap => {
-      if (snap.exists()) setAdminResults(snap.data());
-    });
-
-    // Subscribe to all participants (live ranking)
-    const unsubParts = onSnapshot(collection(db, "participants"), snap => {
-      const data = {};
-      snap.forEach(d => { data[d.id] = d.data(); });
-      setParticipants(data);
-    });
-
-    unsubRef.current = () => { unsubAdmin(); unsubParts(); };
     return () => unsubRef.current?.();
   }, []);
 
@@ -248,19 +245,13 @@ export default function App() {
     .sort((a,b) => calcTotal(b,adminResults) - calcTotal(a,adminResults));
 
   // ── Routing
-  if (screen==="loading") return (
-    <div style={{ display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12 }}>
-      <div style={{ fontSize:40 }}>⚽</div>
-      <p style={{ color:"var(--color-text-secondary)",fontSize:14 }}>Carregando...</p>
-    </div>
-  );
-
-  if (screen==="register") return (
+  if (screen==="loading" || screen==="register") return (
     <RegisterScreen nameInput={nameInput} setNameInput={setNameInput}
       pinInput={pinInput} setPinInput={setPinInput}
       loginError={loginError}
       onRegister={handleRegister} locked={adminResults.guessesLocked}
-      sorted={sorted} getTotal={p=>calcTotal(p,adminResults)} />
+      sorted={sorted} getTotal={p=>calcTotal(p,adminResults)}
+      loading={screen==="loading"} />
   );
 
   if (screen==="home") return (
@@ -325,7 +316,7 @@ export default function App() {
 }
 
 // ─── REGISTER ────────────────────────────────────────────────────────────────
-function RegisterScreen({ nameInput, setNameInput, pinInput, setPinInput, loginError, onRegister, locked, sorted, getTotal }) {
+function RegisterScreen({ nameInput, setNameInput, pinInput, setPinInput, loginError, onRegister, locked, sorted, getTotal, loading }) {
   return (
     <div style={{ maxWidth:400,margin:"0 auto",padding:"2rem 1rem" }}>
       <div style={{ textAlign:"center",marginBottom:"1.5rem" }}>
@@ -365,8 +356,8 @@ function RegisterScreen({ nameInput, setNameInput, pinInput, setPinInput, loginE
         )}
 
         <button onClick={onRegister} style={{ width:"100%",fontWeight:500,padding:"10px" }}
-          disabled={!nameInput.trim()||!pinInput.trim()}>
-          {locked ? "Acessar" : "Entrar no bolão"} <i className="ti ti-arrow-right" />
+          disabled={loading||!nameInput.trim()||!pinInput.trim()}>
+          {loading ? "Carregando..." : locked ? "Acessar" : "Entrar no bolão"} <i className="ti ti-arrow-right" />
         </button>
 
         <p style={{ margin:"12px 0 0",fontSize:12,color:"var(--color-text-tertiary)",textAlign:"center" }}>
